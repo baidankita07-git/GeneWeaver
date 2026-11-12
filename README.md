@@ -1,79 +1,155 @@
-# GeneWeaver — Genomic Parser
 
-Member 3 component: genomic FASTA ingestion, sequence validation/cleaning,
-NumPy encoding and chunk preparation. This package is a parser foundation;
-CRISPR guide/PAM scoring is planned as a separate module in the next phase.
+# GeneWeaver
+## GPU-Accelerated CRISPR Alignment Engine
 
-## Scope
+### Member 3 — Genomic Parser & CRISPR Scoring
 
+This component handles genomic FASTA ingestion, sequence validation and
+cleaning, NumPy encoding, genome chunk preparation, and the planned
+CRISPR guide/PAM scoring functionality.
+
+The genomic parser provides the foundation for processing DNA sequences
+before downstream alignment and scoring operations.
+
+## 1. Scope
+
+### Genomic Parser
 - Read multi-record FASTA files using Biopython.
-- Extract record IDs, descriptions, sequences and lengths.
+- Extract record IDs, descriptions, sequences, and lengths.
 - Validate canonical DNA bases and optional IUPAC ambiguity symbols.
 - Normalize sequence case and whitespace.
 - Encode canonical A/C/G/T bases as NumPy integer values.
-- Split sequences into chunks while retaining zero-based, half-open coordinates.
+- Split long sequences into indexed chunks.
+- Preserve sequence IDs and zero-based, half-open coordinates.
 
-## Project structure
+### CRISPR Scoring — Planned
+- CRISPR guide sequence handling.
+- PAM sequence detection.
+- Guide and target sequence matching.
+- Nucleotide mismatch detection.
+- Position-based mismatch scoring.
+- PAM-aware scoring matrix.
+- Potential off-target site ranking.
+
+## 2. Project Structure
 
 ```text
-genomic_parser/
-  __init__.py
-  fasta_reader.py
-  sequence_validator.py
-  sequence_cleaner.py
-  numpy_converter.py
-  chunk_processor.py
-tests/
-data/
-docs/
-requirements.txt
+GeneWeaver/
+├── genomic_parser/
+│   ├── __init__.py
+│   ├── fasta_reader.py
+│   ├── sequence_validator.py
+│   ├── sequence_cleaner.py
+│   ├── numpy_converter.py
+│   └── chunk_processor.py
+├── tests/
+│   └── __init__.py
+├── data/
+├── docs/
+├── requirements.txt
+├── .gitignore
+└── README.md
 ```
 
-## Setup
+## 3. Technologies
 
-Use Python 3.10 or newer.
+- Python 3.10+
+- Biopython — FASTA parsing and biological sequence handling
+- NumPy — Numerical DNA sequence representation
+- Pytest — Unit testing
+
+## 4. Setup
+
+Create and activate a virtual environment.
+
+### Windows PowerShell
+
+```powershell
+python -m venv venv
+.\venv\Scripts\Activate.ps1
+```
+
+### macOS/Linux
 
 ```bash
-python -m venv .venv
-# Windows PowerShell:
-.venv\Scripts\Activate.ps1
-# macOS/Linux:
-source .venv/bin/activate
+python -m venv venv
+source venv/bin/activate
+```
 
+Install dependencies:
+
+```bash
 python -m pip install -r requirements.txt
 ```
 
-## Quick example
+## 5. Quick Example
 
 ```python
 from genomic_parser import read_fasta, clean_dna_sequence
 from genomic_parser import encode_dna_sequence, chunk_sequence
 
 records = read_fasta("data/sample.fasta")
+
 sequence = clean_dna_sequence(records[0]["sequence"])
+
 encoded = encode_dna_sequence(sequence)
-chunks = chunk_sequence(sequence, chunk_size=1000, overlap=50)
+
+chunks = chunk_sequence(
+    sequence,
+    chunk_size=1000,
+    overlap=50
+)
 
 print(records[0]["id"], len(encoded), len(chunks))
 ```
 
-Only canonical A/C/G/T bases can be NumPy-encoded with the current two-bit
-mapping. The validator and cleaner can accept IUPAC ambiguity symbols by
-default; decide how ambiguous bases should be handled before encoding.
+Only canonical A/C/G/T bases can currently be NumPy-encoded using the
+two-bit mapping. The validator and cleaner can accept IUPAC ambiguity
+symbols; ambiguous bases must be handled before encoding.
 
-## Tests
+## 6. Testing
+
+Run the test suite from the project root:
 
 ```bash
 python -m pytest -q
 ```
 
-## Coordinate convention
+## 7. Coordinate Convention
 
-Chunk coordinates are zero-based and half-open: `start` is included and
-`end` is excluded. For a chunk of length `n`, `end - start == n`.
+Genome chunk coordinates use zero-based, half-open indexing:
 
-## Development status
+- `start` — inclusive starting position.
+- `end` — exclusive ending position.
+- `length` — number of bases in the chunk.
 
-This package implements Member 3's parser foundation. CRISPR guide handling,
-PAM detection, mismatch scoring and off-target ranking belong to the planned
-`crispr_scoring/` module and are not implemented in this parser package yet.
+The coordinate relationship is:
+
+```text
+length = end - start
+```
+
+Adjacent chunks may overlap according to the configured overlap value.
+
+## 8. Development Status
+
+### Genomic Parser
+- FASTA ingestion foundation.
+- Sequence validation and cleaning.
+- NumPy sequence encoding.
+- Configurable genome chunking.
+- Chunk metadata preservation.
+- Unit testing.
+
+### CRISPR Scoring
+Planned for the next development phase. Guide handling, PAM detection,
+mismatch scoring, and off-target ranking will be implemented separately.
+
+## 9. Contribution Scope
+
+This component is maintained as Member 3's responsibility within
+GeneWeaver.
+
+Development is limited to genomic parsing and CRISPR scoring logic.
+GPU alignment, distributed processing, and other team components remain
+the responsibility of their respective team members.
