@@ -3,6 +3,7 @@ from numba import cuda, int32, uint8
 
 MAX_GRNA_LEN = 32  # Supports standard 20-23bp CRISPR gRNAs with PAM
 
+
 # WEEK 2 KERNEL: Global VRAM Implementation
 @cuda.jit
 def _cuda_global_kernel(genome, grna, max_mismatches, results):
@@ -18,18 +19,18 @@ def _cuda_global_kernel(genome, grna, max_mismatches, results):
                     results[idx] = -1
                     return
         results[idx] = mismatches
-      
+
+
 # WEEK 4 KERNEL: On-Chip CUDA Shared Memory Optimization
 @cuda.jit
 def _cuda_shared_kernel(genome, grna, max_mismatches, results):
-    # Allocate ultra-fast shared memory for the gRNA sequence inside each block
     shared_grna = cuda.shared.array(shape=MAX_GRNA_LEN, dtype=uint8)
 
     tx = cuda.threadIdx.x
     idx = cuda.grid(1)
     m = grna.shape[0]
 
-    # Cooperatively load gRNA from slow global VRAM into fast shared memory
+    # Cooperatively load gRNA from global VRAM into fast shared memory
     if tx < m:
         shared_grna[tx] = grna[tx]
     cuda.syncthreads()
@@ -43,6 +44,7 @@ def _cuda_shared_kernel(genome, grna, max_mismatches, results):
                     results[idx] = -1
                     return
         results[idx] = mismatches
+
 
 def gpu_crispr_align(
     genome: np.ndarray,
@@ -81,7 +83,35 @@ def gpu_crispr_align(
         _cuda_global_kernel[blocks_per_grid, threads_per_block](
             d_genome, d_grna, max_mismatches, d_results
         )
+
     cuda.synchronize()
 
     # 4. Device (GPU VRAM) -> Host (CPU RAM)
     return d_results.copy_to_host()
+
+
+def get_gpu_stats() -> dict:
+    """
+    Telemetry helper for Member 4's Textual TUI dashboard.
+    Returns device name and live VRAM usage in megabytes.
+    """
+    if not cuda.is_available():
+        return {
+            "available": False,
+            "device": "CPU Only",
+            "used_mb": 0.0,
+            "total_mb": 0.0,
+        }
+
+    device = cuda.get_current_device()
+    free_bytes, total_bytes = cuda.current_context().get_memory_info()
+    used_bytes = total_bytes - free_bytes
+
+    return {
+        "available": True,
+        "device": device.name.decode("utf-8")
+        if isinstance(device.name, bytes)
+        else str(device.name),
+        "used_mb": round(used_bytes / (1024**2), 2),
+        "total_mb": round(total_bytes / (1024**2), 2),
+    }
