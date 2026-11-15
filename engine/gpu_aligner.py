@@ -115,3 +115,24 @@ def get_gpu_stats() -> dict:
         "used_mb": round(used_bytes / (1024**2), 2),
         "total_mb": round(total_bytes / (1024**2), 2),
     }
+def run_dask_chunk(
+    genome_chunk: np.ndarray, grna: np.ndarray, max_mismatches: int = 3
+) -> np.ndarray:
+    """
+    Dask-compatible chunk processor for GeneDaskScheduler.
+    Runs the 411x Shared Memory CUDA kernel on GPU, with automatic CPU fallback.
+    """
+    if len(genome_chunk) < len(grna):
+        return np.array([], dtype=np.int32)
+
+    if cuda.is_available():
+        return gpu_crispr_align(
+            genome=genome_chunk,
+            grna=grna,
+            max_mismatches=max_mismatches,
+            use_shared_memory=True,
+        )
+    else:
+        from .cpu_baseline import cpu_crispr_align
+
+        return cpu_crispr_align(genome_chunk, grna, max_mismatches)
