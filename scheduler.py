@@ -1,31 +1,52 @@
 import gc
 import dask.array as da
 import numpy as np
+from dask.distributed import Client, LocalCluster
+from engine.gpu_aligner import run_dask_chunk
 
 
 class GeneDaskScheduler:
-  """Handles chunked parallel processing of genetic sequence matrices using Dask."""
+    """Handles chunked parallel CRISPR alignment across genetic sequences using Dask + CUDA."""
 
-  def process_genetic_chunks(
-      self, data_shape=(10000, 1000), chunk_size=(1000, 1000)
-  ):
-    """Processes genetic arrays in memory-safe chunks and returns mean score."""
-    dask_data = da.random.random(data_shape, chunks=chunk_size)
-    processed = dask_data.map_blocks(
-        self._safe_chunk_compute, dtype=np.float64
-    )
-    result = processed.mean().compute()
-    gc.collect()
-    return float(result)
+    def _init_(self, n_workers: int = 2, threads_per_worker: int = 2, memory_limit: str = "2GB"):
+        self.cluster = LocalCluster(
+            n_workers=n_workers,
+            threads_per_worker=threads_per_worker,
+            memory_limit=memory_limit,
+        )
+        self.client = Client(self.cluster)
 
-  @staticmethod
-  def _safe_chunk_compute(chunk):
-    """Applies vectorized mathematical transformation to an individual chunk."""
-    return np.square(chunk) + np.sqrt(chunk)
+    def align_genome_chunks(
+        self,
+        genome: np.ndarray,
+        grna: np.ndarray,
+        chunk_size: int = 1_000_000,
+        max_mismatches: int = 3,
+    ) -> np.ndarray:
+        """Splits a 1D uint8 DNA sequence into memory-safe Dask chunks with overlap,
+        runs Member 1's CUDA kernel on each chunk, and returns all mismatch counts.
+        """
+        overlap_len = len(grna) - 1
+        dask_genome = da.from_array(genome, chunks=chunk_size)
 
-  def shutdown(self):
-    """Safely closes active Dask client or cluster resources if initialized."""
-    if hasattr(self, "client") and self.client:
-      self.client.close()
-    if hasattr(self, "cluster") and self.cluster:
-      self.cluster.close()
+        # map_overlap prevents missing off-target matches that straddle chunk boundaries
+        aligned_chunks = dask_genome.map_overlap(
+            run_dask_chunk,
+            depth={0: overlap_len},
+            boundary="none",
+            trim=True,
+            dtype=np.int32,
+            grna=grna,
+            max_mismatches=max_mismatches,
+        )
+
+        results = aligned_chunks.compute()
+        gc.collect()
+        return results
+
+    def shutdown(self):
+        """Safely closes active Dask client or cluster resources if initialized."""
+        if hasattr(self, "client") and self.client:
+            self.client.close()
+        if hasattr(self, "cluster") and self.cluster:
+            self.cluster.close()
