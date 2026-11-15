@@ -3,6 +3,10 @@ from cpu_baseline import cpu_crispr_align
 from gpu_aligner import gpu_crispr_align
 from numba import cuda
 import numpy as np
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__),'..')))
+from scheduler import GeneDaskScheduler
 
 
 def run_benchmark(genome_size: int = 2_000_000, grna_len: int = 23):
@@ -21,6 +25,11 @@ def run_benchmark(genome_size: int = 2_000_000, grna_len: int = 23):
     cpu_out = cpu_crispr_align(genome, grna, max_mismatches=3)
     cpu_time = time.perf_counter() - start_cpu
     print(f"CPU Baseline Time:        {cpu_time:.4f} seconds")
+    scheduler=GeneDaskScheduler()
+    start_dask= time.perf_counter()
+    dask_score=scheduler.process_genetic_chunks()
+    dask_time=time.perf_counter() - start_dask
+    print(f"Dask Scheduler Time:{dask_time:.4f} seconds {Mean Score:{dask_score:.4f})")
 
     if not cuda.is_available():
         print("No Nvidia GPU detected on this machine. Skipping CUDA test.")
