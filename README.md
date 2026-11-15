@@ -6,3 +6,4 @@ GPU - Accelerated CRISPR Alignment Engine
 3. Pure Python CPU Baseline: Built cpu_crispr_align() in engine/cpu_baseline.py using a sliding-window mismatch algorithm with early-exit threshold pruning as our official reference implementation.
 4. Automated Benchmarking Suite: Created engine/benchmark.py to generate 2-million-base-pair test genomes, record precise CPU execution times, and verify 100% output accuracy.
 5. Early GPU Kernel Scaffolding: Drafted the initial Numba @cuda.jit GPU alignment wrapper (engine/gpu_aligner.py) ahead of schedule to unblock Member 2's Dask multi-GPU integration for Week 2.
+<img width="2880" height="1800" alt="image" src="https://github.com/user-attachments/assets/b50640d0-c6b3-487b-a9d3-d13d6307b455" />
