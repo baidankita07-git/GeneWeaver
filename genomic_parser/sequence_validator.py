@@ -1,45 +1,51 @@
-"""DNA sequence validation helpers."""
 
-from typing import Iterable
+"""Validate DNA sequences for the GeneWeaver project."""
 
-# IUPAC DNA symbols. N denotes any nucleotide; other ambiguity codes are
-# accepted by default and can be disabled with allow_ambiguous=False.
-VALID_DNA_SYMBOLS = frozenset("ACGT")
-AMBIGUOUS_DNA_SYMBOLS = frozenset("RYSWKMBDHVN")
-ALL_IUPAC_DNA_SYMBOLS = VALID_DNA_SYMBOLS | AMBIGUOUS_DNA_SYMBOLS
+from typing import Dict
 
 
-def validate_dna_sequence(
-    sequence: str,
-    allow_ambiguous: bool = True,
-    allow_empty: bool = False,
-) -> None:
-    """Validate a DNA sequence.
+VALID_DNA_BASES = {"A", "T", "G", "C"}
 
-    Returns None for valid input; raises TypeError or ValueError otherwise.
-    Whitespace is ignored for validation. Use clean_dna_sequence to normalize it.
+
+def validate_dna_sequence(sequence: str) -> Dict:
+    """Validate a DNA sequence and report invalid characters.
+
+    Args:
+        sequence: DNA sequence represented as a string.
+
+    Returns:
+        Dictionary containing:
+            is_valid: Whether the sequence contains only valid DNA bases.
+            length: Total sequence length.
+            invalid_bases: Sorted list of invalid characters.
+            invalid_count: Number of invalid characters.
+
+    Raises:
+        TypeError: If sequence is not a string.
+        ValueError: If sequence is empty.
     """
     if not isinstance(sequence, str):
         raise TypeError("sequence must be a string")
 
-    normalized = "".join(sequence.split()).upper()
-    if not normalized and not allow_empty:
-        raise ValueError("DNA sequence must not be empty")
+    sequence = sequence.upper()
 
-    allowed = ALL_IUPAC_DNA_SYMBOLS if allow_ambiguous else VALID_DNA_SYMBOLS
-    invalid = sorted(set(normalized) - allowed)
-    if invalid:
-        raise ValueError(f"Invalid DNA character(s): {', '.join(invalid)}")
+    if not sequence:
+        raise ValueError("DNA sequence cannot be empty")
+
+    invalid_bases = sorted(set(sequence) - VALID_DNA_BASES)
+
+    invalid_count = sum(
+        base not in VALID_DNA_BASES for base in sequence
+    )
+
+    return {
+        "is_valid": invalid_count == 0,
+        "length": len(sequence),
+        "invalid_bases": invalid_bases,
+        "invalid_count": invalid_count,
+    }
 
 
-def is_valid_dna_sequence(
-    sequence: str,
-    allow_ambiguous: bool = True,
-    allow_empty: bool = False,
-) -> bool:
-    """Return True if sequence passes DNA validation; otherwise False."""
-    try:
-        validate_dna_sequence(sequence, allow_ambiguous, allow_empty)
-        return True
-    except (TypeError, ValueError):
-        return False
+def is_valid_dna_sequence(sequence: str) -> bool:
+    """Return True if the DNA sequence contains only A, T, G and C."""
+    return validate_dna_sequence(sequence)["is_valid"]
