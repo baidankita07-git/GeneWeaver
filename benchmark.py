@@ -29,7 +29,7 @@ def run_dask_benchmark():
         )
 
         elapsed_time = time.perf_counter() - start_time
-        valid_matches = np.sum(results <= 3)
+        valid_matches = np.sum((results >= 0) & (results <= 3))
 
         print("-" * 50)
         print("Benchmark Complete! (Zero CUDA_OUT_OF_MEMORY errors)")
