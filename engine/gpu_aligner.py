@@ -136,3 +136,22 @@ def run_dask_chunk(
         from .cpu_baseline import cpu_crispr_align
 
         return cpu_crispr_align(genome_chunk, grna, max_mismatches)
+def count_off_target_hits(
+    alignment_results: np.ndarray, max_mismatches: int = 3
+) -> int:
+    """
+    Safely counts valid off-target CRISPR hits (0 to max_mismatches),
+    excluding -1 sentinel values returned for non-matching positions.
+    """
+    valid_mask = (alignment_results >= 0) & (
+        alignment_results <= max_mismatches
+    )
+    return int(np.sum(valid_mask))
+def extract_hit_indices(
+    alignment_results: np.ndarray, max_mismatches: int = 3
+) -> np.ndarray:
+    """ Returns exact genomic indices where valid off-target matches occur,
+    ready for Member 3's CRISPR PAM scoring and Member 4's TUI viewer."""
+    return np.where(
+        (alignment_results >= 0) & (alignment_results <= max_mismatches)
+    )[0]
