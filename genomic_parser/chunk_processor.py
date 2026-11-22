@@ -1,22 +1,46 @@
 
-"""Split long genomic sequences into indexed chunks."""
+"""Split genomic DNA sequences into configurable chunks."""
 
 from typing import Dict, List
 
 
-def chunk_sequence(sequence: str, chunk_size: int, overlap: int = 0) -> List[Dict]:
-    """Split a sequence into chunks with zero-based, half-open coordinates.
+def chunk_sequence(
+    sequence: str,
+    chunk_size: int,
+    overlap: int = 0,
+) -> List[Dict]:
+    """Divide a genomic sequence into overlapping chunks.
 
-    Each result includes sequence, chunk_index, start, end and length.
-    Adjacent chunks overlap by the requested number of bases.
-    Coordinates always reference the original sequence.
+    Args:
+        sequence: Original genomic DNA sequence.
+        chunk_size: Maximum number of bases in each chunk.
+        overlap: Number of bases shared between consecutive chunks.
+
+    Returns:
+        List of dictionaries containing:
+            sequence: Chunk DNA sequence.
+            chunk_index: Zero-based chunk index.
+            start: Starting position in the original sequence.
+            end: Ending position (exclusive).
+            length: Number of bases in the chunk.
+
+    Raises:
+        TypeError: If sequence is not a string.
+        ValueError: If chunk_size or overlap is invalid.
     """
     if not isinstance(sequence, str):
         raise TypeError("sequence must be a string")
+
     if chunk_size <= 0:
         raise ValueError("chunk_size must be greater than zero")
+
     if overlap < 0 or overlap >= chunk_size:
-        raise ValueError("overlap must be >= 0 and smaller than chunk_size")
+        raise ValueError(
+            "overlap must be non-negative and smaller than chunk_size"
+        )
+
+    if not sequence:
+        return []
 
     chunks = []
     step = chunk_size - overlap
@@ -36,17 +60,3 @@ def chunk_sequence(sequence: str, chunk_size: int, overlap: int = 0) -> List[Dic
             break
 
     return chunks
-
-
-def chunk_genome(records: list, chunk_size: int, overlap: int = 0) -> List[Dict]:
-    """Chunk FASTA dictionaries returned by read_fasta, preserving record IDs."""
-    output = []
-
-    for record in records:
-        for chunk in chunk_sequence(record["sequence"], chunk_size, overlap):
-            output.append({
-                "sequence_id": record["id"],
-                **chunk,
-            })
-
-    return output
