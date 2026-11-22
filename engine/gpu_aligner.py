@@ -155,3 +155,18 @@ def extract_hit_indices(
     return np.where(
         (alignment_results >= 0) & (alignment_results <= max_mismatches)
     )[0]
+def recommend_chunk_size(safety_factor: float = 0.5) -> int:
+    """
+    Inspects live free GPU VRAM and calculates the maximum safe DNA chunk size
+    (in base pairs) to prevent CUDA_OUT_OF_MEMORY errors on any Nvidia GPU.
+    """
+    if not cuda.is_available():
+        return 1_000_000  # Default 1M bp chunk for CPU fallback
+
+    free_bytes, _ = cuda.current_context().get_memory_info()
+    usable_bytes = int(free_bytes * safety_factor)
+
+    # Each base pair requires 1 byte (uint8 genome) + 4 bytes (int32 result) = 5 bytes
+    bytes_per_bp = 5
+    safe_bp = max(100_000, usable_bytes // bytes_per_bp)
+    return int(safe_bp)
