@@ -1,62 +1,81 @@
 
-"""Split genomic DNA sequences into configurable chunks."""
+"""Attach and preserve metadata for genomic sequence chunks."""
 
 from typing import Dict, List
 
 
-def chunk_sequence(
-    sequence: str,
-    chunk_size: int,
-    overlap: int = 0,
+def add_chunk_metadata(
+    chunks: List[Dict],
+    sequence_id: str,
 ) -> List[Dict]:
-    """Divide a genomic sequence into overlapping chunks.
+    """Add metadata to genomic chunks without modifying the originals.
 
     Args:
-        sequence: Original genomic DNA sequence.
-        chunk_size: Maximum number of bases in each chunk.
-        overlap: Number of bases shared between consecutive chunks.
+        chunks: List of chunks produced by chunk_sequence().
+        sequence_id: Identifier of the original genomic sequence.
 
     Returns:
-        List of dictionaries containing:
-            sequence: Chunk DNA sequence.
-            chunk_index: Zero-based chunk index.
-            start: Starting position in the original sequence.
-            end: Ending position (exclusive).
-            length: Number of bases in the chunk.
+        A new list of chunks containing additional metadata.
 
     Raises:
-        TypeError: If sequence is not a string.
-        ValueError: If chunk_size or overlap is invalid.
+        TypeError: If inputs have incorrect types.
+        ValueError: If sequence_id is empty or chunk metadata is invalid.
     """
-    if not isinstance(sequence, str):
-        raise TypeError("sequence must be a string")
+    if not isinstance(chunks, list):
+        raise TypeError("chunks must be a list")
 
-    if chunk_size <= 0:
-        raise ValueError("chunk_size must be greater than zero")
+    if not isinstance(sequence_id, str):
+        raise TypeError("sequence_id must be a string")
 
-    if overlap < 0 or overlap >= chunk_size:
-        raise ValueError(
-            "overlap must be non-negative and smaller than chunk_size"
-        )
+    if not sequence_id.strip():
+        raise ValueError("sequence_id cannot be empty")
 
-    if not sequence:
-        return []
+    enriched_chunks = []
 
-    chunks = []
-    step = chunk_size - overlap
+    for chunk in chunks:
+        if not isinstance(chunk, dict):
+            raise TypeError("Each chunk must be a dictionary")
 
-    for index, start in enumerate(range(0, len(sequence), step)):
-        end = min(start + chunk_size, len(sequence))
+        required_fields = {
+            "sequence", "chunk_index", "start", "end", "length"
+        }
 
-        chunks.append({
-            "sequence": sequence[start:end],
-            "chunk_index": index,
-            "start": start,
-            "end": end,
-            "length": end - start,
+        missing_fields = required_fields - chunk.keys()
+
+        if missing_fields:
+            raise ValueError(
+                f"Chunk is missing fields: {sorted(missing_fields)}"
+            )
+
+        sequence = chunk["sequence"]
+
+        if not isinstance(sequence, str):
+            raise TypeError("Chunk sequence must be a string")
+
+        if chunk["length"] != len(sequence):
+            raise ValueError("Chunk length does not match sequence length")
+
+        if chunk["end"] - chunk["start"] != chunk["length"]:
+            raise ValueError("Chunk coordinates do not match its length")
+
+        gc_count = sequence.upper().count("G") + sequence.upper().count("C")
+
+        nucleotide_counts = {
+            base: sequence.upper().count(base)
+            for base in "ATGC"
+        }
+
+        metadata = {
+            "sequence_id": sequence_id,
+            "gc_content": round(
+                (gc_count / len(sequence)) * 100, 2
+            ) if sequence else 0.0,
+            "nucleotide_counts": nucleotide_counts,
+        }
+
+        enriched_chunks.append({
+            **chunk,
+            **metadata,
         })
 
-        if end == len(sequence):
-            break
-
-    return chunks
+    return enriched_chunks
