@@ -170,3 +170,17 @@ def recommend_chunk_size(safety_factor: float = 0.5) -> int:
     bytes_per_bp = 5
     safe_bp = max(100_000, usable_bytes // bytes_per_bp)
     return int(safe_bp)
+def get_optimal_launch_config(num_positions: int) -> tuple[int, int]:
+    """
+    Queries the active Nvidia GPU's hardware limits (max threads per block
+    and multiprocessor count) to compute optimal CUDA grid and block dimensions.
+    """
+    if not cuda.is_available():
+        return (1, 256)
+
+    device = cuda.get_current_device()
+    threads_per_block = min(256, device.MAX_THREADS_PER_BLOCK)
+    blocks_per_grid = (
+        num_positions + (threads_per_block - 1)
+    ) // threads_per_block
+    return (blocks_per_grid, threads_per_block)
