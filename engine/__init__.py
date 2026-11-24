@@ -26,6 +26,6 @@ __all__ = [
     "run_dask_chunk",
     "get_gpu_stats",
     "count_off_target_hits",
-    "extract_hit_indices",
     "recommend_chunk_size",
+    "get_optimal_launch_config",
 ]
