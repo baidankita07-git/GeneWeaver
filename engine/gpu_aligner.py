@@ -69,10 +69,10 @@ def gpu_crispr_align(
     d_results = cuda.device_array(num_positions, dtype=np.int32)
 
     # 2. Configure Grid & Block dimensions
-    threads_per_block = 256
-    blocks_per_grid = (
-        num_positions + (threads_per_block - 1)
-    ) // threads_per_block
+    blocks_per_grid, threads_per_block = get_optimal_launch_config(
+    num_positions
+)
+
 
     # 3. Launch Kernel
     if use_shared_memory:
@@ -184,3 +184,20 @@ def get_optimal_launch_config(num_positions: int) -> tuple[int, int]:
         num_positions + (threads_per_block - 1)
     ) // threads_per_block
     return (blocks_per_grid, threads_per_block)
+
+def filter_pam_sites(
+    genome: np.ndarray, hit_indices: np.ndarray, grna_len: int
+) -> np.ndarray:
+  """
+    Filters valid off-target hit indices to keep only those followed by a
+    canonical SpCas9 NGG PAM sequence (G=2, G=2 at offsets +1 and +2).
+    """
+  valid_pam_hits = []
+  n = len(genome)
+  for idx in hit_indices:
+    pam_start = idx + grna_len
+    if pam_start + 2 < n:
+      if genome[pam_start + 1] == 2 and genome[pam_start + 2] == 2:
+        valid_pam_hits.append(idx)
+  return np.array(valid_pam_hits, dtype=np.int64)
+
