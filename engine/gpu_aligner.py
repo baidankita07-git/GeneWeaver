@@ -70,7 +70,6 @@ def gpu_crispr_align(
 
     # 2. Configure Grid & Block dimensions
     blocks_per_grid, threads_per_block = get_optimal_launch_config(num_positions)
-)
 
 
     # 3. Launch Kernel
