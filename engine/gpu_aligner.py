@@ -69,10 +69,8 @@ def gpu_crispr_align(
     d_results = cuda.device_array(num_positions, dtype=np.int32)
 
     # 2. Configure Grid & Block dimensions
-    threads_per_block = 256
-    blocks_per_grid = (
-        num_positions + (threads_per_block - 1)
-    ) // threads_per_block
+    blocks_per_grid, threads_per_block = get_optimal_launch_config(num_positions)
+
 
     # 3. Launch Kernel
     if use_shared_memory:
@@ -115,3 +113,89 @@ def get_gpu_stats() -> dict:
         "used_mb": round(used_bytes / (1024**2), 2),
         "total_mb": round(total_bytes / (1024**2), 2),
     }
+def run_dask_chunk(
+    genome_chunk: np.ndarray, grna: np.ndarray, max_mismatches: int = 3
+) -> np.ndarray:
+    """
+    Dask-compatible chunk processor for GeneDaskScheduler.
+    Runs the 411x Shared Memory CUDA kernel on GPU, with automatic CPU fallback.
+    """
+    if len(genome_chunk) < len(grna):
+        return np.array([], dtype=np.int32)
+
+    if cuda.is_available():
+        return gpu_crispr_align(
+            genome=genome_chunk,
+            grna=grna,
+            max_mismatches=max_mismatches,
+            use_shared_memory=True,
+        )
+    else:
+        from .cpu_baseline import cpu_crispr_align
+
+        return cpu_crispr_align(genome_chunk, grna, max_mismatches)
+def count_off_target_hits(
+    alignment_results: np.ndarray, max_mismatches: int = 3
+) -> int:
+    """
+    Safely counts valid off-target CRISPR hits (0 to max_mismatches),
+    excluding -1 sentinel values returned for non-matching positions.
+    """
+    valid_mask = (alignment_results >= 0) & (
+        alignment_results <= max_mismatches
+    )
+    return int(np.sum(valid_mask))
+def extract_hit_indices(
+    alignment_results: np.ndarray, max_mismatches: int = 3
+) -> np.ndarray:
+    """ Returns exact genomic indices where valid off-target matches occur,
+    ready for Member 3's CRISPR PAM scoring and Member 4's TUI viewer."""
+    return np.where(
+        (alignment_results >= 0) & (alignment_results <= max_mismatches)
+    )[0]
+def recommend_chunk_size(safety_factor: float = 0.5) -> int:
+    """
+    Inspects live free GPU VRAM and calculates the maximum safe DNA chunk size
+    (in base pairs) to prevent CUDA_OUT_OF_MEMORY errors on any Nvidia GPU.
+    """
+    if not cuda.is_available():
+        return 1_000_000  # Default 1M bp chunk for CPU fallback
+
+    free_bytes, _ = cuda.current_context().get_memory_info()
+    usable_bytes = int(free_bytes * safety_factor)
+
+    # Each base pair requires 1 byte (uint8 genome) + 4 bytes (int32 result) = 5 bytes
+    bytes_per_bp = 5
+    safe_bp = max(100_000, usable_bytes // bytes_per_bp)
+    return int(safe_bp)
+def get_optimal_launch_config(num_positions: int) -> tuple[int, int]:
+    """
+    Queries the active Nvidia GPU's hardware limits (max threads per block
+    and multiprocessor count) to compute optimal CUDA grid and block dimensions.
+    """
+    if not cuda.is_available():
+        return (1, 256)
+
+    device = cuda.get_current_device()
+    threads_per_block = min(256, device.MAX_THREADS_PER_BLOCK)
+    blocks_per_grid = (
+        num_positions + (threads_per_block - 1)
+    ) // threads_per_block
+    return (blocks_per_grid, threads_per_block)
+
+def filter_pam_sites(
+    genome: np.ndarray, hit_indices: np.ndarray, grna_len: int
+) -> np.ndarray:
+  """
+    Filters valid off-target hit indices to keep only those followed by a
+    canonical SpCas9 NGG PAM sequence (G=2, G=2 at offsets +1 and +2).
+    """
+  valid_pam_hits = []
+  n = len(genome)
+  for idx in hit_indices:
+    pam_start = idx + grna_len
+    if pam_start + 2 < n:
+      if genome[pam_start + 1] == 2 and genome[pam_start + 2] == 2:
+        valid_pam_hits.append(idx)
+  return np.array(valid_pam_hits, dtype=np.int64)
+
